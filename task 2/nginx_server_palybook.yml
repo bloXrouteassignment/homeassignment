@@ -1,0 +1,131 @@
+---
+- name: Install and configure NGINX
+  hosts: webservers
+  become: yes
+  tasks:
+
+    # Step 1: Ensure Nginx is installed
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: latest
+        update_cache: yes
+
+    # Step 2: Sample "Hello, World!" HTML page
+    - name: Create Hello World page
+      copy:
+        dest: /var/www/html/index.html
+        content: |
+          <html>
+            <head><title>Hello, World!</title></head>
+            <body><h1>Hello, World!</h1></body>
+          </html>
+
+    # Step 3: Start and enable the Nginx service
+    - name: Start and enable Nginx service
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    # Step 4: Disable unnecessary services
+    - name: Disable Apache2 if running
+      service:
+        name: apache2
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    # Step 5: Configure a basic UFW firewall
+    - name: Allow OpenSSH and HTTP through the firewall
+      ufw:
+        rule: allow
+        name: 'OpenSSH'
+    - name: Allow HTTP through the firewall
+      ufw:
+        rule: allow
+        name: 'Nginx HTTP'
+
+    # Step 6: Enable UFW firewall
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        policy: deny
+
+    # Step 7: Disable weak SSL/TLS protocols
+    - name: Disable weak SSL/TLS protocols in Nginx configuration
+      lineinfile:
+        path: /etc/nginx/snippets/ssl-params.conf
+        line: "ssl_protocols TLSv1.2 TLSv1.3;"
+        create: yes
+        state: present
+
+    # Step 8: Disable unsafe HTTP methods (TRACE, DELETE) 
+    - name: Disable unsafe HTTP methods (TRACE, DELETE)
+      blockinfile:
+        path: /etc/nginx/nginx.conf
+        block: |
+          if ($request_method ~ ^(TRACE|DELETE)$) {
+            return 405;
+          }
+    - name: Install Fluentd
+      apt:
+        name: td-agent
+        state: present
+        update_cache: yes
+  
+   
+    # Step 9: Collect Nginx logs with FluentD
+    - name: Create Fluentd configuration file
+      copy:
+        dest: /etc/td-agent/td-agent.conf
+        content: |
+          <source>
+            @type tail
+            path /var/log/nginx/access.log
+            pos_file /var/log/td-agent/nginx-access.log.pos
+            tag nginx.access
+            <parse>
+              @type nginx
+            </parse>
+          </source>
+
+          <source>
+            @type tail
+            path /var/log/nginx/error.log
+            pos_file /var/log/td-agent/nginx-error.log.pos
+            tag nginx.error
+            <parse>
+              @type nginx
+            </parse> 
+          </source>
+
+          # filter and save logs
+          <filter nginx.access>
+            @type grep
+            <exclude>
+              key $.remote_addr
+              pattern /^(?:{{ lookup('file', '/etc/td-agent/denylist.txt') | join('|') }})$/
+            </exclude>
+          </filter>
+          <match nginx.access>
+            @type file
+            path /var/log/denylist_audit.log
+            append true
+          </match>
+
+    # Step 10: Start and enable Fluentd service
+    - name: Start and enable Fluentd service
+      service:
+        name: td-agent
+        state: started
+        enabled: yes
+
+  # Step 9: Reload Nginx to apply the new configurations
+  handlers:
+    - name: restart nginx
+      service: 
+        name: nginx
+        state: reloaded
+ 
+
