@@ -16,6 +16,7 @@ Security group of EC2 instance only allows ingress traffic on port 80 from Load 
 Load balancer only allows traffic from the Internet on port 443 with proper SSL ceertificate. (For the purpose of the excercise, I opened port 80 as well on the load balancer, but it should be removed in real life scenario).  
 
 Infrastructure can be deployed from a remote workstation running terraform commands:
+
     - terraform init
     
     - terraform plan 
