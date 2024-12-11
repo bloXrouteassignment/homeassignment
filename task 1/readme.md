@@ -17,7 +17,9 @@ Load balancer only allows traffic from the Internet on port 443 with proper SSL 
 
 Infrastructure can be deployed from a remote workstation running terraform commands:
     - terraform init
+    
     - terraform plan 
+    
     - terraform apply --auto-approve
 
 To access NGINX server we would need a DNS name of the load balancer. 
